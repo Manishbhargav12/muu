@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>JioSaavn – Simple Search & Play</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #161a22;
+      --text: #e8ecf1;
+      --muted: #9aa6b2;
+      --accent: #4f8cff;
+      --accent-2: #2dd4bf;
+      --border: #242a35;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: linear-gradient(180deg, #0e1218 0%, #0b0f14 100%);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    /* Top bar */
+    .topbar {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(15,17,21,0.8);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px clamp(12px, 3vw, 24px);
+      display: flex; gap: 12px; align-items: center;
+    }
+    .brand { font-weight: 700; letter-spacing: 0.3px; }
+    .search-wrap {
+      position: relative; flex: 1; max-width: 720px;
+    }
+    #searchInput {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      outline: none;
+      font-size: 16px;
+    }
+    #searchInput::placeholder { color: var(--muted); }
+
+    /* Results */
+    .results {
+      padding: 16px clamp(12px, 3vw, 24px);
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+    .card {
+      display: grid;
+      grid-template-columns: 56px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      transition: border-color .2s ease, transform .08s ease;
+    }
+    .card:hover { border-color: #2a3342; transform: translateY(-1px); }
+    .cover {
+      width: 56px; height: 56px; border-radius: 8px; object-fit: cover;
+      background: #10131a;
+      border: 1px solid var(--border);
+    }
+    .meta { min-width: 0; }
+    .title {
+      font-size: 15px; line-height: 1.2; margin: 0 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .artist {
+      font-size: 12px; color: var(--muted); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .playbtn {
+      border: 0;
+      background: var(--accent);
+      color: white;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .playbtn.secondary { background: var(--accent-2); }
+
+    /* Player bar */
+    .player {
+      position: sticky; bottom: 0;
+      background: rgba(15,17,21,0.85);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid var(--border);
+      padding: 10px clamp(12px, 3vw, 24px);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+    }
+    .now {
+      display: flex; align-items: center; gap: 12px; min-width: 0;
+    }
+    .now img {
+      width: 44px; height: 44px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border);
+    }
+    .now .text {
+      min-width: 0;
+    }
+    .now .text .t { margin: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .now .text .a { margin: 2px 0 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .controls {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .btn {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .vol {
+      appearance: none; width: 140px; height: 6px; border-radius: 999px; background: #202631; outline: none;
+    }
+    .vol::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+
+    .hint { padding: 8px 24px; color: var(--muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+
+  <!-- Top search bar -->
+  <header class="topbar">
+    <div class="brand">🎵 JioSaavn Demo</div>
+    <div class="search-wrap">
+      <input id="searchInput" type="text" placeholder="Search songs, artists (e.g., Arijit Singh)..." autocomplete="off" />
+    </div>
+  </header>
+
+  <!-- optional hint -->
+  <div class="hint">Type to search. Click ▶ to play. (Unofficial API; may require CORS-friendly endpoint.)</div>
+
+  <!-- Results grid -->
+  <main id="results" class="results"></main>
+
+  <!-- Player bar -->
+  <footer class="player">
+    <div class="now">
+      <img id="nowCover" src="arjit.jpeg" alt="" />
+      <div class="text">
+        <p id="nowTitle" class="t">Nothing playing</p>
+        <p id="nowArtist" class="a"></p>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="toggleBtn" class="btn">Play/Pause</button>
+      <input id="vol" class="vol" type="range" min="0" max="1" step="0.01" value="0.9" />
+    </div>
+    <audio id="player" crossorigin="anonymous"></audio>
+  </footer>
+
+  <script>
+    // ====== Config ======
+    // Your unofficial JioSaavn search endpoint:
+    const SEARCH_API = "https://jiosaavn-api-privatecvc2.vercel.app/search/songs?query=";
+
+    // ====== Elements ======
+    const input = document.getElementById("searchInput");
+    const resultsEl = document.getElementById("results");
+    const audio = document.getElementById("player");
+    const nowCover = document.getElementById("nowCover");
+    const nowTitle = document.getElementById("nowTitle");
+    const nowArtist = document.getElementById("nowArtist");
+    const toggleBtn = document.getElementById("toggleBtn");
+    const vol = document.getElementById("vol");
+
+    // ====== State ======
+    let debounceTimer = null;
+
+    // ====== Helpers ======
+    function getPlayableUrl(song) {
+      // Try common fields from various unofficial APIs
+      // Adjust this mapping to your exact API response
+      return (
+        song.media_url ||
+        song.mediaUrl ||
+        song.download_url ||
+        song.downloadUrl ||
+        song.perma_url ||
+        (song.more_info && (song.more_info.media_url || song.more_info.download_url || song.more_info.encrypted_media_url)) ||
+        song.url ||
+        ""
+      );
+    }
+
+    function imageOf(song) {
+      // Try common image fields
+      return song.image || song.thumbnail || (song.images && (song.images.cover || song.images.default)) || "";
+    }
+
+    function titleOf(song) {
+      return song.title || song.song || song.name || "Unknown Title";
+    }
+
+    function artistOf(song) {
+      // Some APIs: song.primary_artists / song.singers / song.more_info.singer
+      return song.primary_artists || song.singers || (song.more_info && song.more_info.singer) || song.artist || "Unknown Artist";
+    }
+
+    function msToMinSec(msOrSec) {
+      const sec = msOrSec > 1000 ? Math.round(msOrSec / 1000) : Math.round(msOrSec || 0);
+      const m = Math.floor(sec / 60);
+      const s = (sec % 60).toString().padStart(2, "0");
+      return `${m}:${s}`;
+    }
+
+    function renderResults(list = []) {
+      resultsEl.innerHTML = "";
+      if (!Array.isArray(list) || list.length === 0) {
+        resultsEl.innerHTML = "<div class='card' style='grid-template-columns:1fr'><div>No results.</div></div>";
+        return;
+      }
+
+      list.forEach((song) => {
+        const cover = imageOf(song);
+        const title = titleOf(song);
+        const artist = artistOf(song);
+        const dur = song.duration || song.more_info?.duration;
+
+        const card = document.createElement("div");
+        card.className = "card";
+
+        card.innerHTML = `
+          <img class="cover" src="${cover || 'https://placehold.co/56x56?text=♪'}" alt="">
+          <div class="meta">
+            <p class="title" title="${title}">${title}</p>
+            <p class="artist" title="${artist}">${artist}${dur ? " • " + msToMinSec(dur) : ""}</p>
+          </div>
+          <button class="playbtn" type="button">▶</button>
+        `;
+
+        const btn = card.querySelector(".playbtn");
+        btn.addEventListener("click", async () => {
+          const url = getPlayableUrl(song);
+
+          if (!url) {
+            alert("Playable URL not found in API response. Adjust getPlayableUrl().");
+            return;
+          }
+
+          // Many unofficial endpoints already return a direct .mp3 URL.
+          // If yours returns encrypted URL, you need an extra API call to decode/resolve it.
+          try {
+            audio.src = url;
+            await audio.play();
+
+            nowCover.src = cover || "https://placehold.co/44x44?text=♪";
+            nowTitle.textContent = title;
+            nowArtist.textContent = artist;
+          } catch (e) {
+            console.error(e);
+            alert("Could not play this track. It might be blocked by CORS or not a direct audio URL.");
+          }
+        });
+
+        resultsEl.appendChild(card);
+      });
+    }
+
+    async function search(q) {
+      try {
+        const res = await fetch(SEARCH_API + encodeURIComponent(q));
+        const data = await res.json();
+
+        // Try common shapes:
+        // 1) { data: { results: [...] } }
+        // 2) { results: [...] }
+        // 3) { songs: [...] }
+        const list =
+          data?.data?.results ||
+          data?.results ||
+          data?.songs ||
+          [];
+
+        renderResults(list);
+      } catch (err) {
+        console.error(err);
+        resultsEl.innerHTML = "<div class='card' style='grid-template-columns:1fr'><div>Search failed. Check console.</div></div>";
+      }
+    }
+
+    // ====== Events ======
+    input.addEventListener("input", () => {
+      const q = input.value.trim();
+      clearTimeout(debounceTimer);
+      if (!q) { resultsEl.innerHTML = ""; return; }
+      debounceTimer = setTimeout(() => search(q), 350);
+    });
+
+    toggleBtn.addEventListener("click", () => {
+      if (audio.paused) audio.play(); else audio.pause();
+    });
+
+    vol.addEventListener("input", () => {
+      audio.volume = Number(vol.value);
+    });
+
+    // Initial state
+    nowCover.src = "https://placehold.co/44x44?text=♪";
+    audio.volume = Number(vol.value);
+  </script>
+</body>
+</html>
